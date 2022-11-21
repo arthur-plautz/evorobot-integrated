@@ -2,10 +2,10 @@ from datetime import datetime
 import logging
 from utils import create_dirs, get_root_dir
 
-class SpecialistLogs:
+class CurriculumLogs:
     def create(self, name):
         self.name = name
-        self.__logger = logging.getLogger(f'{name}_specialist')
+        self.__logger = logging.getLogger(f'{name}_curriculum')
         self.__logger.setLevel(logging.DEBUG)
         fh = logging.FileHandler(self.__filename)
         fh.setLevel(logging.DEBUG)
@@ -14,7 +14,7 @@ class SpecialistLogs:
     @property
     def __logs_dir(self):
         root_dir = get_root_dir()
-        log_dir = f'logs/{self.name}/specialist'
+        log_dir = f'logs/{self.name}/curriculum'
         create_dirs(root_dir, log_dir)
         return log_dir
 

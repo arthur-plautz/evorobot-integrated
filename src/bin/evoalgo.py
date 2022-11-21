@@ -9,7 +9,6 @@
 
  """
 
-from random import random
 import numpy as np
 import time
 from datainterface.initialconditions import InitialConditions
@@ -18,6 +17,7 @@ from datainterface.curriculumconditions import CurriculumConditions
 from datainterface.sampling import generate_conditions
 from datainterface.baseconditions import BaseConditions
 from curriculumlearning.specialist.manager import SpecialistManager
+from curriculumlearning.curriculum.manager import CurriculumManager
 
 class EvoAlgo(object):
     def __init__(self, env, policy, seed, fileini, filedir, icfeatures=[], statsfeatures=[]):
@@ -68,8 +68,15 @@ class EvoAlgo(object):
         )
         self.init_specialist()
 
+        self.curriculum_manager = CurriculumManager(
+            'main',
+            self.main_specialist,
+            self.reset_env,
+            self.policy_trials
+        )
+
         self.cgen = None
-        self.test_limit_stop = 100
+        self.test_limit_stop = None
 
     @property
     def main_specialist(self):
@@ -77,12 +84,16 @@ class EvoAlgo(object):
 
     def init_specialist(self):
         config = dict(
-            fit_batch_size=50,
-            score_batch_size=50,
+            fit_batch_size=10,
+            score_batch_size=10,
             start_generation=1,
             generation_trials=self.policy_trials
         )
         self.specialist_manager.add_specialist('main', config)
+
+    def generate_curriculum(self):
+        easy_proportion = 0.3
+        return self.curriculum_manager.create_curriculum(easy_proportion)
 
     @property
     def __env_name(self):
@@ -100,6 +111,7 @@ class EvoAlgo(object):
     def cgen(self, cgen):
         self._cgen = cgen
         self.specialist_manager.generation = cgen
+        self.curriculum_manager.generation = cgen
 
     @property
     def evaluation_seed(self):
@@ -130,41 +142,6 @@ class EvoAlgo(object):
         self.curriculumconditions.save()
         self.initialconditions.save()
         self.baseconditions.save()
-
-    @property
-    def its_time_for_curriculum(self):
-        specialist = self.main_specialist
-        init_generation = specialist.start_generation + specialist.fit_batch_size + specialist.score_batch_size + 1
-        return (self.cgen >= init_generation) and specialist.qualified
-
-    def generate_curriculum(self, ntrials=None):
-        trials = ntrials if ntrials else self.policy_trials
-        specialist = self.main_specialist
-        if self.its_time_for_curriculum:
-            start_time = time.time()
-            raw = self.generate_conditions(trials * 10)
-            predicted = specialist.predict(raw)
-            curriculum = []
-            bad_conditions = trials * 0.8
-            good_conditions = trials * 0.2
-            bads_counter = bad_conditions
-            goods_counter = good_conditions
-            for i in range(len(predicted)):
-                if bads_counter > 0 and predicted[i] == 'bad':
-                    curriculum.append(raw[i])
-                    bads_counter -= 1
-                elif goods_counter > 0 and predicted[i] == 'good':
-                    curriculum.append(raw[i])
-                    goods_counter -= 1
-                elif good_conditions == 0 and bad_conditions == 0:
-                    break;
-            end_time = time.time()
-
-            return curriculum
-
-    def generate_conditions(self, n_conditions, random_conditions=False):
-        r = random.randint(1, n_conditions) if random_conditions else 1
-        return [self.reset_env(i * r) for i in range(n_conditions)]
 
     def process_base_conditions(self):
         conditions = self.evaluate_center(
