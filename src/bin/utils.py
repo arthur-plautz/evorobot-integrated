@@ -52,31 +52,3 @@ def ascendent_sort(vect):
         # Set invalid value
         tmpv[mini] = 999999999999.0
     return vect, index
-
-def get_root_dir():
-    exe_path = str(os.getcwd())
-    split_str = exe_path.split('evorobot-integrated')
-    return split_str[0] + 'evorobot-integrated'
-
-def create_dir(directory):
-    if not os.path.isdir(directory):
-        os.mkdir(directory)
-
-def create_dirs(base_path, directories):
-    incremental_path = base_path
-    for directory in directories.split('/'):
-        incremental_path += '/'+directory
-        if not os.path.isdir(incremental_path):
-            os.mkdir(incremental_path)
-
-def remove_dir(directory):
-    if os.path.isdir(directory):
-        os.rmdir(directory)
-
-def remove_file(path):
-    if os.path.isfile(path):
-        os.remove(path)
-
-def verify_file(path):
-    if os.path.isfile(path):
-        return True

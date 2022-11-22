@@ -11,13 +11,17 @@
 
 import numpy as np
 import time
-from datainterface.initialconditions import InitialConditions
-from datainterface.runstats import RunStats
-from datainterface.curriculumconditions import CurriculumConditions
-from datainterface.sampling import generate_conditions
-from datainterface.baseconditions import BaseConditions
-from curriculumlearning.specialist.manager import SpecialistManager
-from curriculumlearning.curriculum.manager import CurriculumManager
+
+from data_interfaces.conditions.initial import InitialConditions
+from data_interfaces.conditions.curriculum import CurriculumConditions
+from data_interfaces.conditions.base import BaseConditions
+from data_interfaces.stats.run import RunStats
+from data_interfaces.utils import set_root
+set_root('evorobot-integrated')
+
+from curriculum_learning.specialist.manager import SpecialistManager
+from curriculum_learning.curriculum.manager import CurriculumManager
+from curriculum_learning.curriculum.base_grid import generate_grid
 
 class EvoAlgo(object):
     def __init__(self, env, policy, seed, fileini, filedir, icfeatures=[], statsfeatures=[]):
@@ -53,18 +57,18 @@ class EvoAlgo(object):
             statsfeatures
         )
 
-        self.base_conditions_data = generate_conditions()
+        self.base_grid = generate_grid()
         self.baseconditions = BaseConditions(
             self.__env_name,
             seed,
-            len(self.base_conditions_data)
+            len(self.base_grid)
         )
 
         self.specialist_manager = SpecialistManager(
             'main',
             self.__env_name,
             self.seed,
-            self.base_conditions_data
+            self.base_grid
         )
         self.init_specialist()
 
@@ -145,16 +149,16 @@ class EvoAlgo(object):
 
     def process_base_conditions(self):
         conditions = self.evaluate_center(
-            ntrials=len(self.base_conditions_data),
+            ntrials=len(self.base_grid),
             seed=self.evaluation_seed,
-            curriculum=self.base_conditions_data
+            curriculum=self.base_grid
         )
         performance = list(np.transpose(conditions)[-1])
         self.baseconditions.save_stg(performance, stage=self.cgen)
         return conditions
 
     def process_specialist(self):
-        gen_data = self.process_conditions()
+        gen_data = self.generation_conditions
         self.specialist_manager.update_data(gen_data)
         self.specialist_manager.process_generation()
         self.specialist_manager.save_stg()
