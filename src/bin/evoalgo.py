@@ -40,35 +40,42 @@ class EvoAlgo(object):
         self.policy_trials = self.policy.ntrials
         self.curriculum = None
 
+        upload_reference = 'integrated'
+
         self.initialconditions = InitialConditions(
             self.__env_name,
             seed,
             icfeatures,
-            trials=self.policy_trials
+            trials=self.policy_trials,
+            upload_reference=upload_reference
         )
         self.curriculumconditions = CurriculumConditions(
             self.__env_name,
             seed,
-            trials=self.policy_trials
+            trials=self.policy_trials,
+            upload_reference=upload_reference
         )
         self.runstats = RunStats(
             self.__env_name,
             seed,
-            statsfeatures
+            statsfeatures,
+            upload_reference=upload_reference
         )
 
         self.base_grid = generate_grid()
         self.baseconditions = BaseConditions(
             self.__env_name,
             seed,
-            len(self.base_grid)
+            len(self.base_grid),
+            upload_reference=upload_reference
         )
 
         self.specialist_manager = SpecialistManager(
             'main',
             self.__env_name,
             self.seed,
-            self.base_grid
+            self.base_grid,
+            upload_reference=upload_reference
         )
         self.init_specialist()
 

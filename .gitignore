@@ -129,3 +129,6 @@ dmypy.json
 
 data/*
 logs/*
+
+*client_secrets.json
+*client_token.json
