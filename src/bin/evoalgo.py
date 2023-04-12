@@ -97,7 +97,7 @@ class EvoAlgo(object):
         config = dict(
             fit_batch_size=10,
             score_batch_size=10,
-            start_generation=1,
+            start_generation=1000,
             generation_trials=self.policy_trials
         )
         self.specialist_manager.add_specialist('main', config)

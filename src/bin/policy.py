@@ -353,7 +353,7 @@ class ErPolicy(Policy):
             self.objs = np.arange(1000, dtype=np.float64) 
             self.objs[0] = -1
             self.env.copyDobj(self.objs)
-            import renderWorld
+            #import renderWorld
 
         for trial in range(ntrials):
             env = curriculum[trial] if curriculum else None
@@ -367,8 +367,8 @@ class ErPolicy(Policy):
                 rew += self.env.step()           # perform a simulation step
                 t += 1
                 if (self.test > 0):
-                    # self.env.render()
-                    # info = 'Trial %d Step %d Fit %.2f %.2f' % (trial, t, rew, rews)
+                    self.env.render()
+                    info = 'Trial %d Step %d Fit %.2f %.2f' % (trial, t, rew, rews)
                     # renderWorld.update(self.objs, info, self.ob, self.ac, self.nact)
                     pass
                 if self.done:
