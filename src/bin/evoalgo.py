@@ -9,6 +9,7 @@
 
  """
 
+import math
 import numpy as np
 import time
 
@@ -102,8 +103,13 @@ class EvoAlgo(object):
         )
         self.specialist_manager.add_specialist('main', config)
 
+    @property
+    def curriculum_difficulty(self):
+        easy_proportion = math.ceil(10 - math.ceil(self.progress / 10)) / 10
+        return easy_proportion
+
     def generate_curriculum(self):
-        easy_proportion = 0.3
+        easy_proportion = self.curriculum_difficulty
         return self.curriculum_manager.create_curriculum(easy_proportion)
 
     @property
