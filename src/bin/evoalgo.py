@@ -13,6 +13,10 @@ import math
 import numpy as np
 import time
 
+from curriculum_learning.specialist.manager import SpecialistManager
+from curriculum_learning.curriculum.manager import CurriculumManager
+from curriculum_learning.curriculum.base_grid import generate_grid
+
 from data_interfaces.conditions.initial import InitialConditions
 from data_interfaces.conditions.curriculum import CurriculumConditions
 from data_interfaces.conditions.base import BaseConditions
@@ -20,9 +24,11 @@ from data_interfaces.stats.run import RunStats
 from data_interfaces.utils import set_root
 set_root('evorobot-integrated')
 
-from curriculum_learning.specialist.manager import SpecialistManager
-from curriculum_learning.curriculum.manager import CurriculumManager
-from curriculum_learning.curriculum.base_grid import generate_grid
+ENVIRONMENT_FEATURES = dict(
+    xdpole=6,
+    xbipedal=200
+)
+
 
 class EvoAlgo(object):
     def __init__(self, env, policy, seed, fileini, filedir, icfeatures=[], statsfeatures=[]):
@@ -41,33 +47,46 @@ class EvoAlgo(object):
         self.policy_trials = self.policy.ntrials
         self.curriculum = None
 
+        env_features = self._get_env_features()
+        self.initialize_data_managers(env_features=env_features)
+
+        self.cgen = None
+        self.test_limit_stop = None
+
+    @property
+    def env_name(self):
+        return self.__env_name
+
+    def _get_env_features(self):
+        n_features = ENVIRONMENT_FEATURES[self.__env_name]
+        features = [f"x{i}" for i in range(n_features)]
+        return [
+            "seed",
+            *features,
+            "performance"
+        ]
+
+    def initialize_data_managers(self, env_features=[], stats_features=[]):
         upload_reference = 'integrated'
 
         self.initialconditions = InitialConditions(
             self.__env_name,
-            seed,
-            icfeatures,
+            self.seed,
+            env_features,
             trials=self.policy_trials,
             upload_reference=upload_reference
         )
         self.curriculumconditions = CurriculumConditions(
             self.__env_name,
-            seed,
+            self.seed,
+            env_features[:-1],
             trials=self.policy_trials,
             upload_reference=upload_reference
         )
         self.runstats = RunStats(
             self.__env_name,
-            seed,
-            statsfeatures,
-            upload_reference=upload_reference
-        )
-
-        self.base_grid = generate_grid()
-        self.baseconditions = BaseConditions(
-            self.__env_name,
-            seed,
-            len(self.base_grid),
+            self.seed,
+            stats_features,
             upload_reference=upload_reference
         )
 
@@ -75,7 +94,6 @@ class EvoAlgo(object):
             'main',
             self.__env_name,
             self.seed,
-            self.base_grid,
             upload_reference=upload_reference
         )
         self.init_specialist()
@@ -87,8 +105,9 @@ class EvoAlgo(object):
             self.policy_trials
         )
 
-        self.cgen = None
-        self.test_limit_stop = None
+    def test_limit(self, limit=None):
+        if limit and self.progress >= limit:
+            return True
 
     @property
     def main_specialist(self):
@@ -98,7 +117,8 @@ class EvoAlgo(object):
         config = dict(
             fit_batch_size=10,
             score_batch_size=10,
-            start_generation=1000,
+            start_generation=50,
+            expected_score=0.8,
             generation_trials=self.policy_trials
         )
         self.specialist_manager.add_specialist('main', config)
@@ -109,8 +129,9 @@ class EvoAlgo(object):
         return easy_proportion
 
     def generate_curriculum(self):
-        easy_proportion = self.curriculum_difficulty
-        return self.curriculum_manager.create_curriculum(easy_proportion)
+        if self.policy.curriculum:
+            easy_proportion = self.curriculum_difficulty
+            return self.curriculum_manager.create_curriculum(easy_proportion)
 
     @property
     def __env_name(self):
@@ -132,10 +153,11 @@ class EvoAlgo(object):
 
     @property
     def evaluation_seed(self):
-        return self.seed + (self.cgen * self.batchSize)
+        return self.seed * self.cgen + int(self.maxsteps*self.policy_trials/100000)
 
     def evaluate_center(self, ntrials=10, seed=None, curriculum=None):
-        seed = seed if seed else self.cgen
+        seed = seed if seed else (self.cgen*self.seed)
+        print(seed)
         candidate = self.center
         self.policy.set_trainable_flat(candidate)
         self.policy.nn.normphase(0)
@@ -156,9 +178,8 @@ class EvoAlgo(object):
     def save_all(self):
         self.specialist_manager.save()
         self.runstats.save()
-        self.curriculumconditions.save()
         self.initialconditions.save()
-        self.baseconditions.save()
+        self.curriculumconditions.save()
 
     def process_base_conditions(self):
         conditions = self.evaluate_center(
@@ -185,7 +206,6 @@ class EvoAlgo(object):
         return gen_data
 
     def process_integrations(self):
-        self.process_base_conditions()
         self.process_conditions()
         self.process_specialist()
         self.save_summary()

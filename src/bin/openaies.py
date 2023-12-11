@@ -27,8 +27,7 @@ warnings.filterwarnings("ignore")
 
 class Algo(EvoAlgo):
     def __init__(self, env, policy, seed, fileini, filedir):
-        icfeatures = ['x1', 'x2', 'a1', 'a2', 'b1', 'b2', 'performance']
-        EvoAlgo.__init__(self, env, policy, seed, fileini, filedir, icfeatures=icfeatures)
+        EvoAlgo.__init__(self, env, policy, seed, fileini, filedir)
 
     def loadhyperparameters(self):
         if os.path.isfile(self.fileini):
@@ -106,9 +105,18 @@ class Algo(EvoAlgo):
         self.normalizationdatacollected = False  # whether we collected data for updating the normalization vector
 
     def reset_env(self, salt):
-        self.policy.env.seed(self.seed + (self.cgen * self.batchSize) + salt)
-        self.policy.env.reset()
-        return [self.env.state(i) for i in range(6)].copy()
+        seed = self.seed + (self.cgen * self.batchSize) + salt
+        if self.env_name == 'xbipedal':
+            self.policy.env.reset(seed=seed)
+            rollout_env = [
+                seed,
+                *list(self.policy.env.states)
+            ]
+        if self.env_name == 'xdpole':
+            self.policy.env.seed(seed)
+            self.policy.env.reset()
+            rollout_env = [self.env.state(i) for i in range(6)].copy()
+        return rollout_env
 
     def evaluate(self):
         cseed = self.seed + self.cgen * self.batchSize  # Set the seed for current generation (master and workers have the same seed)
@@ -203,10 +211,6 @@ class Algo(EvoAlgo):
         
         self.center += dCenter                                    # move the center in the direction of the momentum vectors
         self.avecenter = np.average(np.absolute(self.center))      
-
-    def test_limit(self, limit=None):
-        if limit and self.cgen == limit:
-            return True
 
     def run(self):
         self.setProcess()                           # initialize class variables
