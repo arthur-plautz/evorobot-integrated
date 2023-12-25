@@ -15,11 +15,8 @@ import time
 
 from curriculum_learning.specialist.manager import SpecialistManager
 from curriculum_learning.curriculum.manager import CurriculumManager
-from curriculum_learning.curriculum.base_grid import generate_grid
 
 from data_interfaces.conditions.initial import InitialConditions
-from data_interfaces.conditions.curriculum import CurriculumConditions
-from data_interfaces.conditions.base import BaseConditions
 from data_interfaces.stats.run import RunStats
 from data_interfaces.utils import set_root
 set_root('evorobot-integrated')
@@ -61,7 +58,6 @@ class EvoAlgo(object):
         n_features = ENVIRONMENT_FEATURES[self.__env_name]
         features = [f"x{i}" for i in range(n_features)]
         return [
-            "seed",
             *features,
             "performance"
         ]
@@ -73,13 +69,6 @@ class EvoAlgo(object):
             self.__env_name,
             self.seed,
             env_features,
-            trials=self.policy_trials,
-            upload_reference=upload_reference
-        )
-        self.curriculumconditions = CurriculumConditions(
-            self.__env_name,
-            self.seed,
-            env_features[:-1],
             trials=self.policy_trials,
             upload_reference=upload_reference
         )
@@ -99,10 +88,12 @@ class EvoAlgo(object):
         self.init_specialist()
 
         self.curriculum_manager = CurriculumManager(
-            'main',
-            self.main_specialist,
-            self.reset_env,
-            self.policy_trials
+            name='main',
+            enabled=self.policy.curriculum,
+            specialist=self.main_specialist,
+            reset_function=self.reset_env,
+            trials=self.policy_trials,
+            proportion=0.5
         )
 
     def test_limit(self, limit=None):
@@ -117,21 +108,11 @@ class EvoAlgo(object):
         config = dict(
             fit_batch_size=10,
             score_batch_size=10,
-            start_generation=50,
+            start_generation=1000,
             expected_score=0.8,
             generation_trials=self.policy_trials
         )
         self.specialist_manager.add_specialist('main', config)
-
-    @property
-    def curriculum_difficulty(self):
-        easy_proportion = math.ceil(10 - math.ceil(self.progress / 10)) / 10
-        return easy_proportion
-
-    def generate_curriculum(self):
-        if self.policy.curriculum:
-            easy_proportion = self.curriculum_difficulty
-            return self.curriculum_manager.create_curriculum(easy_proportion)
 
     @property
     def __env_name(self):
@@ -157,7 +138,6 @@ class EvoAlgo(object):
 
     def evaluate_center(self, ntrials=10, seed=None, curriculum=None):
         seed = seed if seed else (self.cgen*self.seed)
-        print(seed)
         candidate = self.center
         self.policy.set_trainable_flat(candidate)
         self.policy.nn.normphase(0)
@@ -179,30 +159,19 @@ class EvoAlgo(object):
         self.specialist_manager.save()
         self.runstats.save()
         self.initialconditions.save()
-        self.curriculumconditions.save()
-
-    def process_base_conditions(self):
-        conditions = self.evaluate_center(
-            ntrials=len(self.base_grid),
-            seed=self.evaluation_seed,
-            curriculum=self.base_grid
-        )
-        performance = list(np.transpose(conditions)[-1])
-        self.baseconditions.save_stg(performance, stage=self.cgen)
-        return conditions
 
     def process_specialist(self):
-        gen_data = self.generation_conditions
-        self.specialist_manager.update_data(gen_data)
-        self.specialist_manager.process_generation()
-        self.specialist_manager.save_stg()
+        if self.policy.curriculum:
+            gen_data = self.generation_conditions
+            self.specialist_manager.update_data(gen_data)
+            self.specialist_manager.process_generation()
+            self.specialist_manager.save_stg()
 
     def process_conditions(self):
-        gen_data = self.evaluate_center(self.policy.ntrials, self.evaluation_seed)
+        centroid_evaluation_episodes = 1000
+        gen_data = self.evaluate_center(centroid_evaluation_episodes, self.evaluation_seed)
         self.generation_conditions = gen_data
         self.initialconditions.save_stg(self.generation_conditions, self.cgen)
-        if self.curriculum:
-            self.curriculumconditions.save_stg(self.curriculum, self.cgen)
         return gen_data
 
     def process_integrations(self):

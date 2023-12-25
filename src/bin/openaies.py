@@ -125,6 +125,7 @@ class Algo(EvoAlgo):
         self.cgen += 1
 
         # evaluate samples
+        self.curriculum_manager.curriculum(cseed)
         candidate = np.arange(self.nparams, dtype=np.float64)
         for b in range(self.batchSize):
             for bb in range(2):
@@ -134,8 +135,10 @@ class Algo(EvoAlgo):
                     candidate = self.center - self.samples[b,:] * self.noiseStdDev
                 self.policy.set_trainable_flat(candidate)
                 self.policy.nn.normphase(0) # normalization data is collected during the post-evaluation of the best sample of the previous generation
-            
-                eval_rews, eval_length = self.policy.rollout(self.policy.ntrials, curriculum=self.curriculum, seed=(self.seed + (self.cgen * self.batchSize) + b))
+
+                candidate_seed = (self.seed + (self.cgen * self.batchSize) + b)
+                trials = self.curriculum_manager.select_trials(candidate_seed)
+                eval_rews, eval_length = self.policy.rollout(self.policy.ntrials, curriculum=trials, seed=candidate_seed)
 
                 self.samplefitness[b*2+bb] = eval_rews
                 self.steps += eval_length
@@ -220,8 +223,6 @@ class Algo(EvoAlgo):
         self.steps = 0
         print("Salimans: seed %d maxmsteps %d batchSize %d stepsize %lf noiseStdDev %lf wdecay %d symseed %d nparams %d" % (self.seed, self.maxsteps / 1000000, self.batchSize, self.stepsize, self.noiseStdDev, self.wdecay, self.symseed, self.nparams))
         while (self.steps < self.maxsteps):
-            self.curriculum = self.generate_curriculum()
-
             self.evaluate()                           # evaluate samples
             self.optimize()                           # estimate the gradient and move the centroid in the gradient direction
 
