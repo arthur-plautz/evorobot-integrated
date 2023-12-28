@@ -93,7 +93,7 @@ class EvoAlgo(object):
             specialist=self.main_specialist,
             reset_function=self.reset_env,
             trials=self.policy_trials,
-            proportion=0.5
+            proportion=0
         )
 
     def test_limit(self, limit=None):
@@ -105,12 +105,13 @@ class EvoAlgo(object):
         return self.specialist_manager.specialists.get('main')
 
     def init_specialist(self):
+        self.specialist_trials = 1000
         config = dict(
             fit_batch_size=10,
             score_batch_size=10,
             start_generation=1000,
-            expected_score=0.8,
-            generation_trials=self.policy_trials
+            expected_score=0.9,
+            generation_trials=self.specialist_trials
         )
         self.specialist_manager.add_specialist('main', config)
 
@@ -168,8 +169,7 @@ class EvoAlgo(object):
             self.specialist_manager.save_stg()
 
     def process_conditions(self):
-        centroid_evaluation_episodes = 1000
-        gen_data = self.evaluate_center(centroid_evaluation_episodes, self.evaluation_seed)
+        gen_data = self.evaluate_center(self.specialist_trials, self.evaluation_seed)
         self.generation_conditions = gen_data
         self.initialconditions.save_stg(self.generation_conditions, self.cgen)
         return gen_data
