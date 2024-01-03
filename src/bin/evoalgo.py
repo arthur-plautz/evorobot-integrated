@@ -107,10 +107,10 @@ class EvoAlgo(object):
     def init_specialist(self):
         self.specialist_trials = 1000
         config = dict(
-            fit_batch_size=10,
-            score_batch_size=10,
+            fit_batch_size=1,
+            score_batch_size=1,
             start_generation=1000,
-            expected_score=0.9,
+            expected_score=0.8,
             generation_trials=self.specialist_trials
         )
         self.specialist_manager.add_specialist('main', config)
@@ -157,6 +157,7 @@ class EvoAlgo(object):
         self.runstats.save_stg(data, self.cgen)
 
     def save_all(self):
+        self.save_best_stats()
         self.specialist_manager.save()
         self.runstats.save()
         self.initialconditions.save()
