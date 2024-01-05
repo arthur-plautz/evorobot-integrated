@@ -105,7 +105,7 @@ class EvoAlgo(object):
         return self.specialist_manager.specialists.get('main')
 
     def init_specialist(self):
-        self.specialist_trials = 1000
+        self.specialist_trials = 100
         config = dict(
             fit_batch_size=1,
             score_batch_size=1,
