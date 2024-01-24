@@ -108,15 +108,15 @@ class Algo(EvoAlgo):
         seed = self.seed + (self.cgen * self.batchSize) + salt
         if self.env_name == 'xbipedal':
             self.policy.env.reset(seed=seed)
-            rollout_env = [
-                seed,
-                *list(self.policy.env.states)
-            ]
+            rollout_env = list(self.policy.env.states).copy()
         if self.env_name == 'xdpole':
             self.policy.env.seed(seed)
             self.policy.env.reset()
             rollout_env = [self.env.state(i) for i in range(6)].copy()
-        return rollout_env
+        return [
+            seed,
+            *rollout_env
+        ]
 
     def evaluate(self):
         cseed = self.seed + self.cgen * self.batchSize  # Set the seed for current generation (master and workers have the same seed)

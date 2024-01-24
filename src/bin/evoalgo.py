@@ -58,6 +58,7 @@ class EvoAlgo(object):
         n_features = ENVIRONMENT_FEATURES[self.__env_name]
         features = [f"x{i}" for i in range(n_features)]
         return [
+            "seed",
             *features,
             "performance"
         ]
@@ -109,7 +110,7 @@ class EvoAlgo(object):
         config = dict(
             fit_batch_size=1,
             score_batch_size=1,
-            start_generation=1000,
+            start_generation=100,
             expected_score=0.8,
             generation_trials=self.specialist_trials
         )
@@ -165,7 +166,9 @@ class EvoAlgo(object):
     def process_specialist(self):
         if self.policy.curriculum:
             gen_data = self.generation_conditions
-            self.specialist_manager.update_data(gen_data)
+            seed_index = 0
+            _gen_data = list(np.delete(gen_data, seed_index, axis=1))
+            self.specialist_manager.update_data(_gen_data)
             self.specialist_manager.process_generation()
             self.specialist_manager.save_stg()
 

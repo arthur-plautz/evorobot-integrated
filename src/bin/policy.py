@@ -372,9 +372,9 @@ class ErPolicy(Policy):
             #import renderWorld
 
         for trial in range(ntrials):
-            env = curriculum[trial] if curriculum else None
+            env = curriculum[trial][1:] if curriculum else None
             self.env.reset(env)                     # reset the environment at the beginning of a new episode
-            init_cond = [self.env.state(i) for i in range(6)].copy()   # get initial conditions
+            init_state = [self.env.state(i) for i in range(6)].copy()   # get initial conditions
             self.nn.resetNet()                   # reset the activation of the neurons (necessary for recurrent policies)
             rew = 0.0
             t = 0
@@ -396,7 +396,12 @@ class ErPolicy(Policy):
             rews += rew
 
             if save_env:
-                self.rollout_env.append(init_cond + [rew])  # save rollout conditions
+                rollout_env = [
+                    seed,
+                    *list(init_state),
+                    rew
+                ]
+                self.rollout_env.append(rollout_env)  # save rollout conditions
 
         rews /= ntrials                         # Normalize reward by the number of trials
         if (self.test > 0 and ntrials > 1):
