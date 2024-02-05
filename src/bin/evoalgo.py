@@ -13,16 +13,20 @@ import math
 import numpy as np
 import time
 
+from curriculum_learning.specialist.manager import SpecialistManager
+from curriculum_learning.curriculum.manager import CurriculumManager
+
 from data_interfaces.conditions.initial import InitialConditions
-from data_interfaces.conditions.curriculum import CurriculumConditions
-from data_interfaces.conditions.base import BaseConditions
 from data_interfaces.stats.run import RunStats
+from data_interfaces.stats.agents import AgentStats
 from data_interfaces.utils import set_root
 set_root('evorobot-integrated')
 
-from curriculum_learning.specialist.manager import SpecialistManager
-from curriculum_learning.curriculum.manager import CurriculumManager
-from curriculum_learning.curriculum.base_grid import generate_grid
+ENVIRONMENT_FEATURES = dict(
+    xdpole=6,
+    xbipedal=200
+)
+
 
 class EvoAlgo(object):
     def __init__(self, env, policy, seed, fileini, filedir, icfeatures=[], statsfeatures=[]):
@@ -41,76 +45,83 @@ class EvoAlgo(object):
         self.policy_trials = self.policy.ntrials
         self.curriculum = None
 
+        env_features = self._get_env_features()
+        self.initialize_data_managers(env_features=env_features)
+
+        self.cgen = None
+        self.test_limit_stop = None
+
+    @property
+    def env_name(self):
+        return self.__env_name
+
+    def _get_env_features(self):
+        n_features = ENVIRONMENT_FEATURES[self.__env_name]
+        features = [f"x{i}" for i in range(n_features)]
+        return [
+            "seed",
+            *features,
+            "performance"
+        ]
+
+    def initialize_data_managers(self, env_features=[], stats_features=[]):
         upload_reference = 'integrated'
-
-        self.initialconditions = InitialConditions(
-            self.__env_name,
-            seed,
-            icfeatures,
-            trials=self.policy_trials,
-            upload_reference=upload_reference
-        )
-        self.curriculumconditions = CurriculumConditions(
-            self.__env_name,
-            seed,
-            trials=self.policy_trials,
-            upload_reference=upload_reference
-        )
-        self.runstats = RunStats(
-            self.__env_name,
-            seed,
-            statsfeatures,
-            upload_reference=upload_reference
-        )
-
-        self.base_grid = generate_grid()
-        self.baseconditions = BaseConditions(
-            self.__env_name,
-            seed,
-            len(self.base_grid),
-            upload_reference=upload_reference
-        )
 
         self.specialist_manager = SpecialistManager(
             'main',
             self.__env_name,
             self.seed,
-            self.base_grid,
             upload_reference=upload_reference
         )
         self.init_specialist()
 
         self.curriculum_manager = CurriculumManager(
-            'main',
-            self.main_specialist,
-            self.reset_env,
-            self.policy_trials
+            name='main',
+            enabled=self.policy.curriculum,
+            specialist=self.main_specialist,
+            reset_function=self.reset_env,
+            trials=self.policy_trials,
+            proportion=0
         )
 
-        self.cgen = None
-        self.test_limit_stop = None
+        self.initialconditions = InitialConditions(
+            self.__env_name,
+            self.seed,
+            env_features,
+            stage_length=self.centroid_evaluation_trials,
+            upload_reference=upload_reference
+        )
+        self.runstats = RunStats(
+            self.__env_name,
+            self.seed,
+            stats_features,
+            upload_reference=upload_reference
+        )
+        self.agentstats = AgentStats(
+            self.__env_name,
+            self.seed,
+            self.policy.nparams,
+            upload_reference=upload_reference
+        )
+
+    def test_limit(self, limit=None):
+        if limit and self.progress >= limit:
+            return True
 
     @property
     def main_specialist(self):
         return self.specialist_manager.specialists.get('main')
 
     def init_specialist(self):
+        self.centroid_evaluation_trials = 100
         config = dict(
-            fit_batch_size=10,
-            score_batch_size=10,
+            fit_batch_size=1,
+            score_batch_size=1,
             start_generation=1000,
-            generation_trials=self.policy_trials
+            expected_score=0.8,
+            generation_trials=self.centroid_evaluation_trials
         )
         self.specialist_manager.add_specialist('main', config)
-
-    @property
-    def curriculum_difficulty(self):
-        easy_proportion = math.ceil(10 - math.ceil(self.progress / 10)) / 10
-        return easy_proportion
-
-    def generate_curriculum(self):
-        easy_proportion = self.curriculum_difficulty
-        return self.curriculum_manager.create_curriculum(easy_proportion)
 
     @property
     def __env_name(self):
@@ -132,15 +143,26 @@ class EvoAlgo(object):
 
     @property
     def evaluation_seed(self):
-        return self.seed + (self.cgen * self.batchSize)
+        return self.seed * self.cgen + int(self.maxsteps*self.policy_trials/100000)
 
     def evaluate_center(self, ntrials=10, seed=None, curriculum=None):
-        seed = seed if seed else self.cgen
+        seed = seed if seed else (self.cgen*self.seed)
         candidate = self.center
         self.policy.set_trainable_flat(candidate)
         self.policy.nn.normphase(0)
         self.policy.rollout(ntrials, seed=seed, curriculum=curriculum, save_env=True)
         return self.policy.rollout_env
+
+    def save_agent(self, parameters, agent_id):
+        self._agents_data[agent_id][0] = agent_id
+        for i in range(1, len(self.agentstats.columns)):
+            self._agents_data[agent_id][i] = parameters[i-1]
+    
+    def save_agents(self):
+        self.agentstats.save_stg(self._agents_data, self.cgen)
+        for i in range(self.batchSize):
+            for j in range(self.agentstats.n_columns):
+                self._agents_data[i][j] = None
 
     def save_summary(self):
         data = [
@@ -154,40 +176,34 @@ class EvoAlgo(object):
         self.runstats.save_stg(data, self.cgen)
 
     def save_all(self):
+        self.save_best_stats()
         self.specialist_manager.save()
         self.runstats.save()
-        self.curriculumconditions.save()
+        self.agentstats.save()
         self.initialconditions.save()
-        self.baseconditions.save()
-
-    def process_base_conditions(self):
-        conditions = self.evaluate_center(
-            ntrials=len(self.base_grid),
-            seed=self.evaluation_seed,
-            curriculum=self.base_grid
-        )
-        performance = list(np.transpose(conditions)[-1])
-        self.baseconditions.save_stg(performance, stage=self.cgen)
-        return conditions
 
     def process_specialist(self):
-        gen_data = self.generation_conditions
-        self.specialist_manager.update_data(gen_data)
-        self.specialist_manager.process_generation()
-        self.specialist_manager.save_stg()
+        if self.policy.curriculum:
+            gen_data = self.generation_conditions
+            seed_index = 0
+            _gen_data = list(np.delete(gen_data, seed_index, axis=1))
+            self.specialist_manager.update_data(_gen_data)
+            self.specialist_manager.process_generation()
+            self.specialist_manager.save_stg()
 
     def process_conditions(self):
-        gen_data = self.evaluate_center(self.policy.ntrials, self.evaluation_seed)
+        gen_data = self.evaluate_center(self.centroid_evaluation_trials, self.evaluation_seed)
         self.generation_conditions = gen_data
-        self.initialconditions.save_stg(self.generation_conditions, self.cgen)
-        if self.curriculum:
-            self.curriculumconditions.save_stg(self.curriculum, self.cgen)
+        self.initialconditions.save_stg(
+            gen_data,
+            self.cgen
+        )
         return gen_data
 
     def process_integrations(self):
-        self.process_base_conditions()
         self.process_conditions()
         self.process_specialist()
+        self.save_agents()
         self.save_summary()
 
     def reset(self):

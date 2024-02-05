@@ -27,8 +27,7 @@ warnings.filterwarnings("ignore")
 
 class Algo(EvoAlgo):
     def __init__(self, env, policy, seed, fileini, filedir):
-        icfeatures = ['x1', 'x2', 'a1', 'a2', 'b1', 'b2', 'performance']
-        EvoAlgo.__init__(self, env, policy, seed, fileini, filedir, icfeatures=icfeatures)
+        EvoAlgo.__init__(self, env, policy, seed, fileini, filedir)
 
     def loadhyperparameters(self):
         if os.path.isfile(self.fileini):
@@ -104,11 +103,22 @@ class Algo(EvoAlgo):
         self.tnormepisodes = 0.0                 # total epsidoes in which normalization data should be collected so far
         self.normepisodes = 0                    # numer of episodes in which normalization data has been actually collected so far
         self.normalizationdatacollected = False  # whether we collected data for updating the normalization vector
+        self._agents_data = zeros((self.batchSize, self.agentstats.n_columns))
+        self.agentstats.stage_length = self.batchSize
 
     def reset_env(self, salt):
-        self.policy.env.seed(self.seed + (self.cgen * self.batchSize) + salt)
-        self.policy.env.reset()
-        return [self.env.state(i) for i in range(6)].copy()
+        seed = self.seed + (self.cgen * self.batchSize) + salt
+        if self.env_name == 'xbipedal':
+            self.policy.env.reset(seed=seed)
+            rollout_env = list(self.policy.env.states).copy()
+        if self.env_name == 'xdpole':
+            self.policy.env.seed(seed)
+            self.policy.env.reset()
+            rollout_env = [self.env.state(i) for i in range(6)].copy()
+        return [
+            seed,
+            *rollout_env
+        ]
 
     def evaluate(self):
         cseed = self.seed + self.cgen * self.batchSize  # Set the seed for current generation (master and workers have the same seed)
@@ -117,17 +127,21 @@ class Algo(EvoAlgo):
         self.cgen += 1
 
         # evaluate samples
+        self.curriculum_manager.curriculum(cseed)
         candidate = np.arange(self.nparams, dtype=np.float64)
         for b in range(self.batchSize):
             for bb in range(2):
                 if (bb == 0):
-                    candidate = self.center + self.samples[b,:] * self.noiseStdDev
+                    candidate = tuple(self.center + self.samples[b,:] * self.noiseStdDev)
+                    self.save_agent(candidate, b)
                 else:
-                    candidate = self.center - self.samples[b,:] * self.noiseStdDev
+                    candidate = tuple(self.center - self.samples[b,:] * self.noiseStdDev)
                 self.policy.set_trainable_flat(candidate)
                 self.policy.nn.normphase(0) # normalization data is collected during the post-evaluation of the best sample of the previous generation
-            
-                eval_rews, eval_length = self.policy.rollout(self.policy.ntrials, curriculum=self.curriculum, seed=(self.seed + (self.cgen * self.batchSize) + b))
+
+                candidate_seed = (self.seed + (self.cgen * self.batchSize) + b)
+                trials = self.curriculum_manager.select_trials(candidate_seed)
+                eval_rews, eval_length = self.policy.rollout(self.policy.ntrials, curriculum=trials, seed=candidate_seed)
 
                 self.samplefitness[b*2+bb] = eval_rews
                 self.steps += eval_length
@@ -204,10 +218,6 @@ class Algo(EvoAlgo):
         self.center += dCenter                                    # move the center in the direction of the momentum vectors
         self.avecenter = np.average(np.absolute(self.center))      
 
-    def test_limit(self, limit=None):
-        if limit and self.cgen == limit:
-            return True
-
     def run(self):
         self.setProcess()                           # initialize class variables
         start_time = time.time()
@@ -216,8 +226,6 @@ class Algo(EvoAlgo):
         self.steps = 0
         print("Salimans: seed %d maxmsteps %d batchSize %d stepsize %lf noiseStdDev %lf wdecay %d symseed %d nparams %d" % (self.seed, self.maxsteps / 1000000, self.batchSize, self.stepsize, self.noiseStdDev, self.wdecay, self.symseed, self.nparams))
         while (self.steps < self.maxsteps):
-            self.curriculum = self.generate_curriculum()
-
             self.evaluate()                           # evaluate samples
             self.optimize()                           # estimate the gradient and move the centroid in the gradient direction
 
