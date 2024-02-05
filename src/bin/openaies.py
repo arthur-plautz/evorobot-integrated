@@ -103,20 +103,22 @@ class Algo(EvoAlgo):
         self.tnormepisodes = 0.0                 # total epsidoes in which normalization data should be collected so far
         self.normepisodes = 0                    # numer of episodes in which normalization data has been actually collected so far
         self.normalizationdatacollected = False  # whether we collected data for updating the normalization vector
+        self._agents_data = zeros((self.batchSize, self.agentstats.n_columns))
+        self.agentstats.stage_length = self.batchSize
 
     def reset_env(self, salt):
         seed = self.seed + (self.cgen * self.batchSize) + salt
         if self.env_name == 'xbipedal':
             self.policy.env.reset(seed=seed)
-            rollout_env = [
-                seed,
-                *list(self.policy.env.states)
-            ]
+            rollout_env = list(self.policy.env.states).copy()
         if self.env_name == 'xdpole':
             self.policy.env.seed(seed)
             self.policy.env.reset()
             rollout_env = [self.env.state(i) for i in range(6)].copy()
-        return rollout_env
+        return [
+            seed,
+            *rollout_env
+        ]
 
     def evaluate(self):
         cseed = self.seed + self.cgen * self.batchSize  # Set the seed for current generation (master and workers have the same seed)
@@ -130,9 +132,10 @@ class Algo(EvoAlgo):
         for b in range(self.batchSize):
             for bb in range(2):
                 if (bb == 0):
-                    candidate = self.center + self.samples[b,:] * self.noiseStdDev
+                    candidate = tuple(self.center + self.samples[b,:] * self.noiseStdDev)
+                    self.save_agent(candidate, b)
                 else:
-                    candidate = self.center - self.samples[b,:] * self.noiseStdDev
+                    candidate = tuple(self.center - self.samples[b,:] * self.noiseStdDev)
                 self.policy.set_trainable_flat(candidate)
                 self.policy.nn.normphase(0) # normalization data is collected during the post-evaluation of the best sample of the previous generation
 
