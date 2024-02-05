@@ -248,7 +248,6 @@ class GymPolicy(Policy):
         if (self.test > 0):          # if the policy is used to test a trained agent and to visualize the neurons, we need initialize the graphic render  
             self.objs = np.arange(10, dtype=np.float64)   
             self.objs[0] = -1
-            import renderWorld
 
         if seed is not None:
             self.nn.seed(seed)           # set the seed of evonet that impacts on the noise eventually added to the activation of the neurons
@@ -267,10 +266,8 @@ class GymPolicy(Policy):
                 rew += r
                 t += 1
                 if (self.test > 0):
-                    self.env.render()
                     time.sleep(0.05)
                     info = 'Trial %d Step %d Fit %.2f %.2f' % (trial, t, rew, rews)
-                    # renderWorld.update(self.objs, info, self.ob, self.ac, self.nact)
                 if done:
                     break
             if (self.test > 0):

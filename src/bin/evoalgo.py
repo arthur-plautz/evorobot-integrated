@@ -18,6 +18,7 @@ from curriculum_learning.curriculum.manager import CurriculumManager
 
 from data_interfaces.conditions.initial import InitialConditions
 from data_interfaces.stats.run import RunStats
+from data_interfaces.stats.agents import AgentStats
 from data_interfaces.utils import set_root
 set_root('evorobot-integrated')
 
@@ -48,7 +49,7 @@ class EvoAlgo(object):
         self.initialize_data_managers(env_features=env_features)
 
         self.cgen = None
-        self.test_limit_stop = None
+        self.test_limit_stop = 0.1
 
     @property
     def env_name(self):
@@ -65,20 +66,6 @@ class EvoAlgo(object):
 
     def initialize_data_managers(self, env_features=[], stats_features=[]):
         upload_reference = 'integrated'
-
-        self.initialconditions = InitialConditions(
-            self.__env_name,
-            self.seed,
-            env_features,
-            trials=self.policy_trials,
-            upload_reference=upload_reference
-        )
-        self.runstats = RunStats(
-            self.__env_name,
-            self.seed,
-            stats_features,
-            upload_reference=upload_reference
-        )
 
         self.specialist_manager = SpecialistManager(
             'main',
@@ -97,6 +84,26 @@ class EvoAlgo(object):
             proportion=0
         )
 
+        self.initialconditions = InitialConditions(
+            self.__env_name,
+            self.seed,
+            env_features,
+            stage_length=self.centroid_evaluation_trials,
+            upload_reference=upload_reference
+        )
+        self.runstats = RunStats(
+            self.__env_name,
+            self.seed,
+            stats_features,
+            upload_reference=upload_reference
+        )
+        self.agentstats = AgentStats(
+            self.__env_name,
+            self.seed,
+            self.policy.nparams,
+            upload_reference=upload_reference
+        )
+
     def test_limit(self, limit=None):
         if limit and self.progress >= limit:
             return True
@@ -106,13 +113,13 @@ class EvoAlgo(object):
         return self.specialist_manager.specialists.get('main')
 
     def init_specialist(self):
-        self.specialist_trials = 100
+        self.centroid_evaluation_trials = 100
         config = dict(
             fit_batch_size=1,
             score_batch_size=1,
-            start_generation=100,
+            start_generation=1000,
             expected_score=0.8,
-            generation_trials=self.specialist_trials
+            generation_trials=self.centroid_evaluation_trials
         )
         self.specialist_manager.add_specialist('main', config)
 
@@ -146,6 +153,17 @@ class EvoAlgo(object):
         self.policy.rollout(ntrials, seed=seed, curriculum=curriculum, save_env=True)
         return self.policy.rollout_env
 
+    def save_agent(self, parameters, agent_id):
+        self._agents_data[agent_id][0] = agent_id
+        for i in range(1, len(self.agentstats.columns)):
+            self._agents_data[agent_id][i] = parameters[i-1]
+    
+    def save_agents(self):
+        self.agentstats.save_stg(self._agents_data, self.cgen)
+        for i in range(self.batchSize):
+            for j in range(self.agentstats.n_columns):
+                self._agents_data[i][j] = None
+
     def save_summary(self):
         data = [
             '%d' % (self.steps / 1000000),
@@ -161,6 +179,7 @@ class EvoAlgo(object):
         self.save_best_stats()
         self.specialist_manager.save()
         self.runstats.save()
+        self.agentstats.save()
         self.initialconditions.save()
 
     def process_specialist(self):
@@ -173,14 +192,18 @@ class EvoAlgo(object):
             self.specialist_manager.save_stg()
 
     def process_conditions(self):
-        gen_data = self.evaluate_center(self.specialist_trials, self.evaluation_seed)
+        gen_data = self.evaluate_center(self.centroid_evaluation_trials, self.evaluation_seed)
         self.generation_conditions = gen_data
-        self.initialconditions.save_stg(self.generation_conditions, self.cgen)
+        self.initialconditions.save_stg(
+            gen_data,
+            self.cgen
+        )
         return gen_data
 
     def process_integrations(self):
         self.process_conditions()
         self.process_specialist()
+        self.save_agents()
         self.save_summary()
 
     def reset(self):
