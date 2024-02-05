@@ -49,7 +49,7 @@ class EvoAlgo(object):
         self.initialize_data_managers(env_features=env_features)
 
         self.cgen = None
-        self.test_limit_stop = 0.1
+        self.test_limit_stop = None
 
     @property
     def env_name(self):
