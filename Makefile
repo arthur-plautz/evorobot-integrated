@@ -26,6 +26,9 @@ create_alias:
 	bash scripts/alias.sh
 	$(source ~/.bash_aliases)
 
+update_lab:
+	bash scripts/lab.sh
+
 compile_erdiscrim:
 	$(call remove_build_dir)
 	$(call remove_files,"ErDiscrim")

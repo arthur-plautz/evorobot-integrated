@@ -129,6 +129,7 @@ dmypy.json
 
 data/*
 logs/*
+lab/lab-repository/*
 
 *client_secrets.json
 *client_token.json
