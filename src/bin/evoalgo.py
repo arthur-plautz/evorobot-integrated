@@ -9,7 +9,6 @@
 
  """
 
-import math
 import numpy as np
 import time
 
@@ -20,7 +19,7 @@ from data_interfaces.conditions.initial import InitialConditions
 from data_interfaces.stats.run import RunStats
 from data_interfaces.stats.agents import AgentStats
 from data_interfaces.utils import set_root
-set_root('evorobot-integrated')
+set_root("evorobot-integrated")
 
 ENVIRONMENT_FEATURES = dict(
     xdpole=6,
@@ -29,7 +28,7 @@ ENVIRONMENT_FEATURES = dict(
 
 
 class EvoAlgo(object):
-    def __init__(self, env, policy, seed, fileini, filedir, icfeatures=[], statsfeatures=[]):
+    def __init__(self, env, policy, seed, fileini, filedir, test_limit=None):
         self.env = env                       # the environment
         self.policy = policy                 # the policy
         self.seed = seed                     # the seed of the experiment
@@ -49,7 +48,8 @@ class EvoAlgo(object):
         self.initialize_data_managers(env_features=env_features)
 
         self.cgen = None
-        self.test_limit_stop = None
+        self.test_limit_stop = float(test_limit) if test_limit else None
+
 
     @property
     def env_name(self):

@@ -111,6 +111,8 @@ def main(argv):
     parser.add_argument('-g', '--genofile', help='name of the file containing the parameters of the agent', type=str, default=None)
     parser.add_argument('-d', '--displayneurons', help='show the activation of the neurons', action='store_true', default=False)
     parser.add_argument('-o', '--folder', help='file folder', type=str, default=".")    
+    parser.add_argument('-l', '--limit', help='early stop limit for testing', type=str, default="")
+
     args = parser.parse_args()
 
     if (len(args.fileini) == 0):    # if the name of the inifile is not specified display help information
@@ -190,7 +192,7 @@ def main(argv):
     elif (algoname == 'coevo2'):
         from coevo2 import Algo
         
-    algo = Algo(env, policy, args.seed, args.fileini, args.folder)
+    algo = Algo(env, policy, args.seed, args.fileini, args.folder, args.limit)
 
 
     if args.workers > 1:

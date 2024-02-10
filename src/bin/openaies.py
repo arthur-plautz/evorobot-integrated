@@ -26,8 +26,8 @@ warnings.filterwarnings("ignore")
 # the master post-evaluate the best sample of the last generation and eventually update the input normalization vector
 
 class Algo(EvoAlgo):
-    def __init__(self, env, policy, seed, fileini, filedir):
-        EvoAlgo.__init__(self, env, policy, seed, fileini, filedir)
+    def __init__(self, env, policy, seed, fileini, filedir, test_limit):
+        EvoAlgo.__init__(self, env, policy, seed, fileini, filedir, test_limit)
 
     def loadhyperparameters(self):
         if os.path.isfile(self.fileini):

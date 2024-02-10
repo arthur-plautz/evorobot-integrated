@@ -32,5 +32,5 @@ threadpoolctl>=3.1.0
 tomli>=2.0.1
 git+https://github.com/arthur-plautz/gym.git@master
 gym[box2d]
-git+https://github.com/curriculum-guys/data-interfaces.git@master
-git+https://github.com/curriculum-guys/curriculum-learning.git@wcci-bipedal
+git+https://github.com/curriculum-guys/data-interfaces.git@0.1.5
+git+https://github.com/curriculum-guys/curriculum-learning.git@0.1.5
