@@ -19,6 +19,9 @@ compile_resource = \
 	python setup${1}.py build_ext --inplace; \
 	cp ${2}*.so ../bin
 
+build_image:
+	docker build -t evrun_integrated:latest .
+
 update_requirements:
 	pip freeze > requirements.txt
 
