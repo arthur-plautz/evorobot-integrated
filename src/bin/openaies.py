@@ -225,7 +225,7 @@ class Algo(EvoAlgo):
 
         self.steps = 0
         print("Salimans: seed %d maxmsteps %d batchSize %d stepsize %lf noiseStdDev %lf wdecay %d symseed %d nparams %d" % (self.seed, self.maxsteps / 1000000, self.batchSize, self.stepsize, self.noiseStdDev, self.wdecay, self.symseed, self.nparams))
-        while (self.steps < self.maxsteps):
+        while (self.cgen < self.test_limit_stop):
             self.evaluate()                           # evaluate samples
             self.optimize()                           # estimate the gradient and move the centroid in the gradient direction
 
